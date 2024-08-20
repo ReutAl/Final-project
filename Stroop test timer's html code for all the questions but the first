@@ -1,0 +1,45 @@
+<script type="text/javascript">
+Qualtrics.SurveyEngine.addOnload(function() {
+    var totalSurveyTime = 60; // Total time in seconds for the entire survey
+    //var startTime = parseInt("${e://Field/surveyStart}");
+
+    // Function to update the timer display
+    function updateTimer() {
+        var currentTime = Date.now();
+        var elapsedTime = (currentTime - startTime) / 1000; // Elapsed time in seconds
+        var timeLeft = Math.max(0, totalSurveyTime - elapsedTime); // Time left in seconds
+
+        // Convert timeLeft to minutes and seconds
+        var minutes = Math.floor(timeLeft / 60);
+        var seconds = Math.floor(timeLeft % 60);
+
+        // Format the time remaining
+        var formattedTime = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+
+        // Update the timer display
+        document.getElementById('timerDisplay').textContent = formattedTime;
+
+        // Check if time is up
+        if (timeLeft <= 0) {
+            clearInterval(interval); // Stop the timer
+            document.getElementById('timerDisplay').textContent = 'Time\'s up!';
+            // Redirect or handle end of survey here
+            window.location.href = "https://view.genially.com/667d1c1a1b7c540014e0b232/interactive-content-2"; // Replace with your destination URL
+        }
+    }
+
+    // Update the timer every second
+    var interval = setInterval(updateTimer, 1000);
+
+    // Call updateTimer immediately to start the countdown
+    updateTimer();
+});
+</script>
+
+<div id="countdown_timer">
+    <p style="text-align: center;">
+        <span style="font-size: 37px;">
+            <span id="timerDisplay"></span> 
+        </span>
+    </p>
+</div>
