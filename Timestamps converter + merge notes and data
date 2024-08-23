@@ -1,0 +1,85 @@
+import pandas as pd
+from datetime import datetime
+import numpy as np
+
+def convert_timestamp(timestamp):
+    try:
+        # Convert Unix timestamp to datetime
+        dt = datetime.fromtimestamp(float(timestamp))
+        # Format the datetime as requested
+        return dt.strftime('%d-%m-%y %H:%M:%S')
+    except Exception as e:
+        print(f"Error converting timestamp {timestamp}: {e}")
+        return None
+
+def find_closest_timestamp(target, timestamps, direction='after'):
+    if direction == 'after':
+        return min((ts for ts in timestamps if ts >= target), default=None)
+    else:  # 'before'
+        return max((ts for ts in timestamps if ts <= target), default=None)
+
+def safe_to_datetime(ts):
+    try:
+        return pd.to_datetime(ts, unit='s' if ts.isdigit() else None)
+    except:
+        return pd.NaT
+
+# Load the BI.csv file
+bi_data = pd.read_csv('C:/Users/Owner/Desktop/Emotibit data/102/2024-07-08_12-42-16-956568_BI.csv')  # Replace with your actual file name
+un_df = pd.read_csv('C:/Users/Owner/Desktop/Emotibit data/102/2024-07-08_12-42-16-956568_UN.csv')
+
+# Convert LocalTimestamp to the requested format
+bi_data['FormattedTime'] = bi_data['LocalTimestamp'].apply(convert_timestamp)
+
+# Reorder columns to put FormattedTime at the beginning
+columns = ['FormattedTime'] + [col for col in bi_data.columns if col != 'FormattedTime']
+bi_data = bi_data[columns]
+
+# Convert LocalTimestamp to datetime
+bi_data['LocalTimestamp_dt'] = bi_data['LocalTimestamp'].apply(safe_to_datetime)
+un_df['LocalTimestamp_dt'] = un_df['LocalTimestamp'].apply(safe_to_datetime)
+
+# If conversion failed, use numeric sorting
+if bi_data['LocalTimestamp_dt'].isna().all() or un_df['LocalTimestamp_dt'].isna().all():
+    bi_data['LocalTimestamp_dt'] = pd.to_numeric(bi_data['LocalTimestamp'], errors='coerce')
+    un_df['LocalTimestamp_dt'] = pd.to_numeric(un_df['LocalTimestamp'], errors='coerce')
+
+# Sort both dataframes by LocalTimestamp
+bi_data = bi_data.sort_values('LocalTimestamp')
+un_df = un_df.sort_values('LocalTimestamp')
+
+# Create a copy of bi_data and add a new 'UN' column
+merged_df = bi_data.copy()
+merged_df['UN'] = np.nan
+
+# Create a dictionary for faster lookup
+bi_dict = dict(zip(bi_data['LocalTimestamp'], bi_data.index))
+
+# Iterate through UN dataframe
+for _, un_row in un_df.iterrows():
+    un_timestamp = un_row['LocalTimestamp']
+    un_data = un_row['UN']
+    
+    if un_timestamp in bi_dict:
+        # Exact match found
+        merged_df.at[bi_dict[un_timestamp], 'UN'] = un_data
+    else:
+        if str(un_data).startswith('end'):
+            # Look for closest timestamp before
+            closest_ts = find_closest_timestamp(un_timestamp, bi_data['LocalTimestamp'], 'before')
+        else:
+            # Look for closest timestamp after
+            closest_ts = find_closest_timestamp(un_timestamp, bi_data['LocalTimestamp'], 'after')
+        
+        if closest_ts is not None:
+            merged_df.at[bi_dict[closest_ts], 'UN'] = un_data
+
+# Remove LocalTimestamp_dt from columns if it exists
+if 'LocalTimestamp_dt' in columns:
+    columns.remove('LocalTimestamp_dt')
+
+# Calculate squared difference between consecutive rows in the 'BI' column
+merged_df['diff^2'] = (merged_df['BI'].diff() ** 2).fillna(0)
+
+# Save the merged dataframe to a new CSV file
+merged_df.to_csv('BI_time_notes_102.csv', index=False)
