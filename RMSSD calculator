@@ -1,0 +1,89 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime
+
+# Read the CSV file
+df = pd.read_csv('C:/Users/Owner/Desktop/Emotibit data/102/BI_time_notes_102.csv')
+
+def convert_timestamp(timestamp):
+    try:
+        # Convert Unix timestamp to datetime
+        dt = datetime.fromtimestamp(float(timestamp))
+        # Format the datetime as requested
+        return dt.strftime('%d-%m-%y %H:%M:%S')
+    except Exception as e:
+        print(f"Error converting timestamp {timestamp}: {e}")
+        return None
+
+def safe_to_datetime(ts):
+    try:
+        return pd.to_datetime(ts, unit='s' if ts.isdigit() else None)
+    except:
+        return pd.NaT
+
+# Convert and format the 'LocalTimestamp' column
+df['FormattedTimeNew'] = df['LocalTimestamp'].apply(convert_timestamp)
+df['FormattedTimeNew'] = df['FormattedTimeNew'].apply(safe_to_datetime)
+
+# Define a function to calculate time differences
+def calculate_time_difference(start_label, end_label):
+    start_times = df.loc[df['UN'] == start_label, 'FormattedTimeNew']
+    end_times = df.loc[df['UN'] == end_label, 'FormattedTimeNew']
+    
+    if not start_times.empty and not end_times.empty:
+        start_time = start_times.iloc[0]
+        end_time = end_times.iloc[0]
+        # Calculate the difference in seconds
+        return (end_time - start_time).total_seconds()
+    else:
+        return None
+
+# Calculate the time differences
+time_differences = {
+    'relaxing video': calculate_time_difference('relaxing video', 'end of relaxing video'),
+    'stroop1': calculate_time_difference('stroop1', 'end of stroop1'),
+    'app using': calculate_time_difference('app using', 'end of app using'),
+    'stroop2': calculate_time_difference('stroop2', 'end of stroop2')
+}
+
+# Convert time differences to hh:mm:ss format
+time_differences_formatted = {key: pd.to_timedelta(value, unit='s') for key, value in time_differences.items() if value is not None}
+
+# Create a DataFrame to store the time differences
+time_diff_df = pd.DataFrame(list(time_differences_formatted.items()), columns=['Activity', 'Time Difference'])
+
+# Format the 'Time Difference' column to hh:mm:ss
+time_diff_df['Time Difference'] = time_diff_df['Time Difference'].apply(lambda x: str(x).split()[-1])
+
+# Define the ranges based on the "UN" column
+ranges = {
+    "relaxing video": ("relaxing video", "end of relaxing video"),
+    "stroop1": ("stroop1", "end of stroop1"),
+    "app using": ("app using", "end of app using"),
+    "stroop2": ("stroop2", "end of stroop2")
+}
+
+# Initialize a list to store the average values
+avg_diff2_values = []
+
+# Calculate the averages for each range
+for key, (start, end) in ranges.items():
+    start_index = df[df['UN'] == start].index[0] + 1
+    end_index = df[df['UN'] == end].index[0]
+    
+    # Calculate the average of "diff^2" for the given range
+    avg_diff2 = df.loc[start_index:end_index, 'diff^2'].mean()
+    avg_diff2_values.append(avg_diff2)
+
+# Add the calculated averages to the new column "avg(diff^2)"
+time_diff_df['avg(diff^2)'] = avg_diff2_values
+
+# Calculate the square root of each value in "avg(diff^2)" and add it to "sqrt(avg)"
+time_diff_df['sqrt(avg)'] = np.sqrt(time_diff_df['avg(diff^2)'])
+
+# Merge the original DataFrame with the new calculated columns
+result_df = pd.concat([df, time_diff_df], axis=1)
+
+# Save the modified DataFrame to a new CSV file
+output_file_path = 'calc_time_102.csv'
+result_df.to_csv(output_file_path, index=False)
