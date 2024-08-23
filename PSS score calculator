@@ -1,0 +1,52 @@
+import pandas as pd
+
+# Function to reverse score specific items
+def reverse_score(value):
+    return 6 - value  # Since your scale is 1-5, reverse scoring is 6 - original score
+
+# Function to interpret the total score
+def interpret_score(total_score):
+    if total_score <= 23:
+        return "Low Stress"
+    elif total_score <= 36:
+        return "Moderate Stress"
+    else:
+        return "High Stress"
+
+# Load the Excel file
+input_file = 'C:/Users/Owner/Desktop/PSS/‏‏‏‏PSS data_No invalids.xlsx'  # Replace with your input file name
+output_file = 'PSS_scoring_No invalids.xlsx'  # Replace with your desired output file name
+
+# Read the Excel file
+df = pd.read_excel(input_file)
+
+# Strip whitespace from column names
+df.columns = df.columns.str.strip()
+
+# Reverse score the necessary columns and store in new columns
+df['reverse_statement4'] = df['statement4'].apply(reverse_score)
+df['reverse_statement5'] = df['statement5'].apply(reverse_score)
+df['reverse_statement7'] = df['statement7'].apply(reverse_score)
+df['reverse_statement8'] = df['statement8'].apply(reverse_score)
+
+# Calculate the total score using the new reverse-scored columns
+df['total score'] = (
+    df['statement1'] +
+    df['statement2'] +
+    df['statement3'] +
+    df['reverse_statement4'] +
+    df['reverse_statement5'] +
+    df['statement6'] +
+    df['reverse_statement7'] +
+    df['reverse_statement8'] +
+    df['statement9'] +
+    df['statement10']
+)
+
+# Interpret the total score
+df['Interpretation'] = df['total score'].apply(interpret_score)
+
+# Save the results to a new Excel file, including both original and reversed scores
+df.to_excel(output_file, index=False)
+
+print(f"Results saved to {output_file}")
