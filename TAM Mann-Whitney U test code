@@ -1,0 +1,81 @@
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stats)
+
+# Read the Excel file
+data <- read_excel("C:/Users/Owner/Desktop/TAM/All data.xlsx")
+dataset <- data[-c(43, 44, 45, 46, 47), ]
+
+pu_cols <- grep("^TAM_PU", colnames(dataset), value = TRUE)
+peou_cols <- grep("^TAM_PEOU", colnames(dataset), value = TRUE)
+bi_cols <- grep("^TAM_BI", colnames(dataset), value = TRUE)
+
+# Print identified columns
+print("Identified PU columns:")
+print(pu_cols)
+print("Identified PEOU columns:")
+print(peou_cols)
+print("Identified BI columns:")
+print(bi_cols)
+
+# Convert all relevant columns to numeric
+dataset <- dataset %>%
+  mutate(across(c(all_of(pu_cols), all_of(peou_cols), all_of(bi_cols)), as.numeric))
+
+# Gather the data for each construct
+data_long <- dataset %>%
+  pivot_longer(
+    cols = c(all_of(pu_cols), all_of(peou_cols), all_of(bi_cols)),
+    names_to = "variable",
+    values_to = "score"
+  ) %>%
+  mutate(construct = case_when(
+    startsWith(variable, "TAM_PU") ~ "PU",
+    startsWith(variable, "TAM_PEOU") ~ "PEOU",
+    startsWith(variable, "TAM_BI") ~ "BI"
+  ))
+
+# Function to perform Mann-Whitney U test safely
+safe_wilcox_test <- function(formula, data) {
+  tryCatch({
+    wilcox.test(formula, data = data)
+  }, error = function(e) {
+    message("Error in wilcox.test: ", e$message)
+    return(NULL)
+  })
+}
+
+# Perform Mann-Whitney U test for each construct
+pu_test <- wilcox.test(score ~ Prototype, data = filter(data_long, construct == "PU"))
+peou_test <- safe_wilcox_test(score ~ Prototype, data = filter(data_long, construct == "PEOU"))
+bi_test <- safe_wilcox_test(score ~ Prototype, data = filter(data_long, construct == "BI"))
+
+# Function to create a formatted output
+format_results <- function(test, construct) {
+  cat("\nMann-Whitney U Test Results for", construct, "\n")
+  if (!is.null(test)) {
+    cat("W statistic:", test$statistic, "\n")
+    cat("p-value:", test$p.value, "\n")
+    cat("Significance:", ifelse(test$p.value < 0.05, "Significant", "Not significant"), "\n")
+  } else {
+    cat("Test could not be performed. Check if there are exactly two groups.\n")
+  }
+}
+
+# Print results
+format_results(pu_test, "Perceived Usefulness (PU)")
+format_results(peou_test, "Perceived Ease of Use (PEOU)")
+format_results(bi_test, "Behavioral Intention (BI)")
+
+# Calculate and print medians and means for each group
+group_summary <- data_long %>%
+  group_by(Prototype, construct) %>%
+  summarise(
+    median_score = median(score, na.rm = TRUE),
+    mean_score = mean(score, na.rm = TRUE)
+  ) %>%
+  pivot_wider(names_from = construct, 
+              values_from = c(median_score, mean_score))
+
+print(group_summary)
